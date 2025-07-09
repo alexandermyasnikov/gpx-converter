@@ -6,8 +6,11 @@ from urllib.parse import unquote, urlparse
 import os
 import re
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
 def main():
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description="""Консольная утилита для конвертации закладок Яндекс Карт в GPX.""")
     parser.add_argument("url", type=str, help="""URL для получения данных.""")
     parser.add_argument("output_dir", type=str, help="""Путь к папке для сохранения GPX файла.""")
@@ -27,10 +30,12 @@ def main():
     parsed_url = urlparse(url)
     if parsed_url.scheme == "file":
         try:
-            with open(parsed_url.path, "r", encoding="utf-8") as f:
+            if os.name == 'nt' and parsed_url.path.startswith('/'):
+                path = parsed_url.path[1:]
+            with open(path, "r", encoding="utf-8") as f:
                 data = f.read()
         except IOError as e:
-            print(f"""Ошибка при чтении локального файла {parsed_url.path}: {e}""")
+            print(f"""Ошибка при чтении локального файла {path}: {e}""")
             return
     else:
         try:
@@ -41,22 +46,34 @@ def main():
             print(f"""Ошибка при получении данных: {e}""")
             return
 
-    # Используем BeautifulSoup для извлечения JSON из HTML
-    soup = BeautifulSoup(data, 'html.parser')
-    script_tag = soup.find('script', {'type': 'application/json'})
-    data_json = None
-    if script_tag:
-        try:
-            data_json = json.loads(script_tag.string)
-        except json.JSONDecodeError as e:
-            print(f"""Ошибка при парсинге JSON из script тега: {e}""")
-            return
-    
+    # Регулярное выражение для извлечения текста между <script> и </script>
+    pattern = r'<script type="application/json" class="state-view">\s*(.*?)\s*</script>'
+    match = re.search(pattern, data, re.DOTALL)
+
+    script_content = ''
+    if match:
+        script_content = match.group(1)
+    else:
+        print("Скрипт не найден.")
+
+    data_json = json.loads(script_content)
+
+    # # Используем BeautifulSoup для извлечения JSON из HTML
+    # soup = BeautifulSoup(script_content, 'html.parser')
+    # script_tag = soup.find('script', {'type': 'application/json'})
+    # data_json = None
+    # if script_tag:
+    #     try:
+    #         data_json = json.loads(script_tag.string)
+    #     except json.JSONDecodeError as e:
+    #         print(f"""Ошибка при парсинге JSON из script тега: {e}""")
+    #         return
+
     if not data_json:
         print("""Ошибка: Не удалось найти или распарсить JSON с \'bookmarksPublicList\' в ответе.""")
         return
 
-    bookmarks_list = data_json.get("bookmarksPublicList")
+    bookmarks_list = data_json.get("config").get("bookmarksPublicList")
     if not bookmarks_list:
         print("""Ошибка: Ключ \'bookmarksPublicList\' не найден в JSON.""")
         return
@@ -83,7 +100,7 @@ def main():
         uri = item.get("uri")
         title = item.get("title", "Без названия")
         description = item.get("description", "")
-        
+
         lat, lon = None, None
         address = "Адрес не определён"
 
@@ -94,16 +111,16 @@ def main():
             if not api_key:
                 print("""Предупреждение: API ключ для Яндекс Геокодера не установлен. Невозможно получить координаты для org?oid.""")
                 continue
-            
+
             geocoder_url = f"https://geocode-maps.yandex.ru/v1/?apikey={api_key}&uri={uri}&format=json&language=ru_RU"
             try:
                 geo_response = requests.get(geocoder_url)
                 geo_response.raise_for_status()
                 geo_data = geo_response.json()
-                
+
                 pos = geo_data["response"]["GeoObjectCollection"]["featureMember"][0]["GeoObject"]["Point"]["pos"]
                 lon, lat = map(float, pos.split(" "))
-                
+
                 full_address = geo_data["response"]["GeoObjectCollection"]["featureMember"][0]["GeoObject"]["metaDataProperty"]["GeocoderMetaData"]["text"]
                 address = full_address if full_address else address
 
