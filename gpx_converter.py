@@ -121,6 +121,7 @@ def main():
     wpts = []
     if os.path.exists(filename):
         for key in ns:
+            print(f"register: {key} {ns[key]}")
             ET.register_namespace(key, ns[key])
         root = ET.parse(filename)
         wpts = root.getroot().findall("wpt", ns)
@@ -167,12 +168,12 @@ def main():
                 continue
             wpt_uri = exts.find("yandex:uri", ns)
             if wpt_uri is not None and wpt_uri.text == uri:
-                print(f"SKIP {item}")
+                gpx_root.append(wpt)
                 found = True
                 continue
 
         if found:
-            ET.SubElement(gpx_root, "wpt")
+            print(f"SKIP {item}")
             continue
 
         lat, lon = None, None
