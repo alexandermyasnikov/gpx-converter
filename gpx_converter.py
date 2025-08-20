@@ -118,26 +118,26 @@ def main():
         "xsi": "http://www.w3.org/2001/XMLSchema-instance",
     }
 
+    for prefix, uri in ns.items():
+        ET.register_namespace(prefix, uri)
+
+    gpx_root = ET.Element("gpx")
+    gpx_root.set("version", "1.1")
+    gpx_root.set("creator", "gpx_converter")
+    gpx_root.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+    gpx_root.set(
+        "xsi:schemaLocation",
+        "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd",
+    )
+
     wpts = []
     if os.path.exists(filename):
-        for key in ns:
-            print(f"register: {key} {ns[key]}")
-            ET.register_namespace(key, ns[key])
         root = ET.parse(filename)
         wpts = root.getroot().findall("wpt", ns)
-
-    gpx_root = ET.Element(
-        "gpx",
-        version="1.1",
-        creator="gpx_converter",
-        xmlns="http://www.topografix.com/GPX/1/1",
-        attrib={
-            "xmlns:yandex": "https://yandex.ru",
-            "xmlns:osmand": "https://osmand.net",
-            "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
-            "xsi:schemaLocation": "http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd",
-        },
-    )
+    else:
+        gpx_root.set("xmlns", "http://www.topografix.com/GPX/1/1")
+        gpx_root.set("xmlns:yandex", "https://yandex.ru")
+        gpx_root.set("xmlns:osmand", "https://osmand.net")
 
     metadata = gpx_root.findall("metadata", ns)
     for item in metadata:
